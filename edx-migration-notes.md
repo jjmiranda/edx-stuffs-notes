@@ -115,19 +115,23 @@ Asegurarse que el repositorio de edx-platform está limpio sin ningún commit pe
 Correr el upgrade.sh del edx_ansible/edx_ansible/util/vagrant
 `./upgrade.sh -c fullstack -t named-release/dogwood.3`
 
-###SOBRE MAGIA CON DATA DE PRODUCCION:
+
+### SOBRE MAGIA CON DATA DE PRODUCCION:
+
 Fallo en el PAVER - error en raise OptimizationError("Error while running r.js optimizer.")
 Hice update_assets para el lms y el cms y parece que se arregló el problema
 Hubo un problema con settings "FOOTER_ORGANIZATION_IMAGE" que estaba apuntando a un folder que no existia: themes/edx.org/images/logo.png
 Se dejó en vacio el valor de este settigns. REVISARLO EN EL SERVER_VARS.
 
 Hubo un problema de conección con el RabbitMQ Cannot connect to amqp://celery:**@127.0.0.1:5672//: [Errno 104] Connection reset by peer.
-# Revisar esta página https://groups.google.com/forum/#!topic/openedx-ops/1SsdJ39IQRc
-# Y esta https://oonlab.com/edx/code/2015/10/21/solve-celery-error-saat-migrasi-open-edx/
+Revisar esta página https://groups.google.com/forum/#!topic/openedx-ops/1SsdJ39IQRc
+Y esta https://oonlab.com/edx/code/2015/10/21/solve-celery-error-saat-migrasi-open-edx/
 El problema se solucionó con esto:
-$ sudo rabbitmqctl add_user celery celery
-$ sudo rabbitmqctl set_permissions celery ".*" ".*" ".*"
-$ sudo service rabbitmq-server restart
+```
+sudo rabbitmqctl add_user celery celery
+sudo rabbitmqctl set_permissions celery ".*" ".*" ".*"
+sudo service rabbitmq-server restart
+```
 
 Salio un error en el paver update_assets
 Build failed running pavelib.assets.update_assets: Subprocess return code: 127
@@ -135,51 +139,63 @@ Es un file not found -> /bin/sh sass no found.
 Lo que hay que hacer para solucionarlo es poner el repositorio del configuration (/edx/app/edx_ansible/edx_ansible) en el mismo named/release que el edx-platform.
 
 
----------------------------
-EN IMD DEV de CYPRESS A DOGWOOD
+### EN IMD DEV de CYPRESS A DOGWOOD
+###################################################################################################
+
 ./upgrade.sh -c fullstack -t named-release/dogwood.3
-# En la migración aparecio un problema con:
-# Applying third_party_auth.0001_initial... django.db.utils.OperationalError: (1050, "Table 'third_party_auth_oauth2providerconfig' already exists")
-# Tratando de eliminar la tabla y salvar la data para volver a correr el script:
-# Acerca de problema https://groups.google.com/forum/#!msg/openedx-ops/ZvoEONjR4ys/SmrG_KBiFAAJ
+En la migración aparecio un problema con:
+Applying third_party_auth.0001_initial... django.db.utils.OperationalError: (1050, "Table 'third_party_auth_oauth2providerconfig' already exists")
+Tratando de eliminar la tabla y salvar la data para volver a correr el script:
+Acerca de problema https://groups.google.com/forum/#!msg/openedx-ops/ZvoEONjR4ys/SmrG_KBiFAAJ
+```
 mysql -u root -p
 show databases;
 use edxapp;
 show tables;
+```
 third_party_auth_ltiproviderconfig
 third_party_auth_oauth2providerconfig
 third_party_auth_samlconfiguration -> tiene data 1 fila
 third_party_auth_samlproviderconfig -> tiene 7 filas
 third_party_auth_samlproviderdata -> tiene 2 filas
 USAR esto para migrar la data:
+```
 sudo mysqldump edxapp third_party_auth_samlconfiguration --no-create-info --complete-insert > third_party_auth_samlconfiguration.sql
 sudo mysqldump edxapp third_party_auth_samlproviderconfig --no-create-info --complete-insert > third_party_auth_samlproviderconfig.sql
 sudo mysqldump edxapp third_party_auth_samlproviderdata --no-create-info --complete-insert > third_party_auth_samlproviderdata.sql
+```
 Eliminar las tablas:
-drop table third_party_auth_ltiproviderconfig, third_party_auth_oauth2providerconfig, third_party_auth_samlconfiguration, third_party_auth_samlproviderdata, third_party_auth_samlproviderconfig
-Para volver a meter la data:
+```drop table third_party_auth_ltiproviderconfig, third_party_auth_oauth2providerconfig, third_party_auth_samlconfiguration, third_party_auth_samlproviderdata, third_party_auth_samlproviderconfig
+# Para volver a meter la data:
 mysql -u root edxapp < third_party_auth_samlconfiguration.sql
 mysql -u root edxapp < third_party_auth_samlproviderconfig.sql
 mysql -u root edxapp < third_party_auth_samlproviderdata.sql
-----------------------
-EN IMD TEST de CYPRESS A DOGWOOD
+```
+
+### EN IMD TEST de CYPRESS A DOGWOOD
 Revisar los cambios hechos en edx-platform y ver que hacemos con ellos...
 
 Borrar todos los venvs:
+```
 sudo rm -rf ${OPENEDX_ROOT}/app/*/v*envs/*
+```
 
 Llegamos hasta los fake migrations de Django 1.8 sin problemas.
 
 Todo OK salvo un tema con el VENVS en NOTIFIER/EDX_NOTES_API/ANALYTICS_API:
 /edx/app/notifier/virtualenvs -> no se regenero... Tuve que volver a crearlo.
+```
 sudo -H -u notifier bash
-dentro de /edx/app/notifier/virtualenvs
+# dentro de /edx/app/notifier/virtualenvs
 virtualenv notifier
-activar el vitualenv
+# activar el vitualenv
 pip install -r /edx/app/notifier/src/requirements.txt
+```
 
 Hacer un:
+```
 sudo /edx/app/update configuration named-release/dogwood.rc
+```
 
 Haciendo el update a named-release/dogwood.rc salio este error:
 msg: file (/etc/update-motd.d/51-cloudguest) is absent, cannot continue
@@ -234,17 +250,16 @@ sudo cp ~/nginx/cms /edx/app/nginx/sites-available/
 sudo cp ~/nginx/lms /edx/app/nginx/sites-available/
 
 
-#################################################################################################
-#################################################################################################
 ## Para el upgrade a EUCALYPTUS:
-#################################################################################################
 #################################################################################################
 
 Mejor parar todos los servicios antes de la instalación:
+```
 sudo /edx/bin/supervisorctl stop all
+```
 
-####################################################################################
-# Las cosas que hay que hacer sobre el Dogwood antes de empezar la migración/update
+
+### Las cosas que hay que hacer sobre el Dogwood antes de empezar la migración/update
 ####################################################################################
 
 Desistalar el problem-builder del site-packages, revisar si no está en el src del environment.
@@ -256,7 +271,6 @@ Eliminar de /edx/app/edxapp/venvs/edxapp/local/lib/python2.7/site-packages/ todo
 Ir al repo de edx-platform y ver que se hacen con los cambios en el core o eliminarlos antes de la instación o el update.
 
 Remover todos los settings del comprehensive theming del server-vars.yml
-
 
 Dio un error en la migración fake del oauth2_provider del tipo:
 OperationalError: (1044, "Access denied for user 'edxapp001'@'localhost' to database 'edxapp_csmh'")
@@ -296,8 +310,8 @@ drop table problem_builder_answer, problem_builder_share;
 Despues de instalar el problem builder reiniciar todos los servicios para que el Celery chape sus backgrounds works.
 *****************Pendiente explicar la solución para la ubicación de la exportada de los CVS...************************
 
-##############################################################################
-# Despues de instalar:
+
+### Despues de instalar:
 ##############################################################################
 
 Copiar los NGINX LMS y CMS Config -> ver arriba
@@ -340,12 +354,11 @@ El proceso de bloqueo de los loadbalancers en producción y la segunda línea es
 [29/8/16 09:49:43] Robert von Bismarck: sudo iptables-restore < block_lb
 [29/8/16 09:49:54] Robert von Bismarck: sudo iptables -F
 
-#################################################################################################
-#################################################################################################
+
 ## Secuencia manual de migración:
 #################################################################################################
 #################################################################################################
-
+```bash script
 # Tener en cuenta que el repositorio de edx-platform no puede tener ningún cambio sin commitear porque da error que se perderían cambios del repositorio.
 # Tener en cuente el chown del server-vars.yml para que esté con el usuario correcto de ese folder.
 
@@ -494,7 +507,7 @@ ${OPENEDX_ROOT}/bin/manage.edxapp lms --settings=aws post_cohort_membership_fix 
 mongo cs_comments_service migrate-008-context.js
 
 # FIN REBOOT a la COMPU
-
+```
 
 
 
