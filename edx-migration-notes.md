@@ -165,7 +165,8 @@ sudo mysqldump edxapp third_party_auth_samlproviderconfig --no-create-info --com
 sudo mysqldump edxapp third_party_auth_samlproviderdata --no-create-info --complete-insert > third_party_auth_samlproviderdata.sql
 ```
 Eliminar las tablas:
-```drop table third_party_auth_ltiproviderconfig, third_party_auth_oauth2providerconfig, third_party_auth_samlconfiguration, third_party_auth_samlproviderdata, third_party_auth_samlproviderconfig
+```
+drop table third_party_auth_ltiproviderconfig, third_party_auth_oauth2providerconfig, third_party_auth_samlconfiguration, third_party_auth_samlproviderdata, third_party_auth_samlproviderconfig
 # Para volver a meter la data:
 mysql -u root edxapp < third_party_auth_samlconfiguration.sql
 mysql -u root edxapp < third_party_auth_samlproviderconfig.sql
