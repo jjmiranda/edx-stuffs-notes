@@ -47,7 +47,7 @@ ssh-keygen -t rsa
 # seguir ejecutando los ansible-playbook
 ```
 Probar que el servicio de notes_api está ejecutandose con esto:
-`sudo /edx/bin/supervisorctl status edx_notes_api`
+    sudo /edx/bin/supervisorctl status edx_notes_api
 
 Activar  ENABLE_EDXNOTES: true y en un curso según instrucciones (ver al final), aquí algunos de los problemas que se presentaron y solucione paso a paso:
 
