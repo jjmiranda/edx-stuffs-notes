@@ -1,5 +1,8 @@
-########################################################################################
-# STUDENTS_NOTES
+# Migration and installation notes
+This is my notes :D
+JJMiranda
+
+## STUDENTS_NOTES
 ########################################################################################
 
 Otra funcionalidad que acabo de activar es la de STUDENTS NOTES/EDX_NOTES pero hay que tener lo siguiente en cuenta para que funcione bien:
@@ -7,7 +10,8 @@ Primero seguir todas las instrucciones que están en este documento:
 https://openedx.atlassian.net/wiki/display/OpenOPS/How+to+Get+edX+Notes+Running
 
 El archivo /edx/app/edx_ansible/edx_ansible/playbooks/roles/edx_notes_api/defaults.yml quedo así
-# Configuracion local
+
+Configuracion local
 ---
 
 EDX_NOTES_API_MYSQL_DB_PASS: 'mag1aeducaXpass'
@@ -22,7 +26,7 @@ EDX_NOTES_API_ALLOWED_HOSTS:
   - certeducax.magia.digital
 
 Y el archivo en /edx/app/edx_ansible/edx_ansible/playbooks/roles/edxapp/defaults.yml quedo así
-# Configuracion local
+Configuracion local
 ---
 
 EDXAPP_EDXNOTES_PUBLIC_API: http://certeducax.magia.digital:18120/api/v1
@@ -34,14 +38,16 @@ EDXAPP_FEATURES:
 Si hay algún problema con la ejecución del ansible playbook por temas de permiso en algún folder cambiar el chmod a ubuntu:ubuntu
 
 Si se tiene algún problema en la ejecución de los playbooks respecto a que el SSH no se puede conectar al 127.0.0.1, hacer lo siguiente:
+
+```bash
 cd ~/.ssh
 # crear una llave para usarla de conexión contra si mismo
 ssh-keygen -t rsa
-#agregar la llave publica id_rsa.pub al archivo de authorized_keys
-Seguir ejecutando los ansible-playbook
-
+# agregar la llave publica id_rsa.pub al archivo de authorized_keys
+# seguir ejecutando los ansible-playbook
+```
 Probar que el servicio de notes_api está ejecutandose con esto:
-sudo /edx/bin/supervisorctl status edx_notes_api
+`sudo /edx/bin/supervisorctl status edx_notes_api`
 
 Activar  ENABLE_EDXNOTES: true y en un curso según instrucciones (ver al final), aquí algunos de los problemas que se presentaron y solucione paso a paso:
 
@@ -86,22 +92,22 @@ Después sobre el admin de django del LMS crear las entradas para cada un de los
 SOCIAL_AUTH_OAUTH_SECRETS = {"(backend name)": "secret", ...} 
 
 
-==================================================================================
-# DE Cypress a Dogwood
-==================================================================================
+
+## De Cypress a Dogwood
+##################################################################################################
 
 Para el CYPRESS:
 Instalar primero el numpy y el scipy sin ningún virtualenv
 Crear un archivo vacio optional.txt en el folder /edx/app/edx_notes_api/edx_notes_api/requirements
--------------------------
+
 Para el upgrade a DOGWOOD
 Instalar dogapi, pytz, numpy, scipy, datadog sobre el python 2.7.10 standard sin ningún virtualenv
 Asegurarse que el repositorio de edx-platform está limpio sin ningún commit pendiente.
 
 Correr el upgrade.sh del edx_ansible/edx_ansible/util/vagrant
-./upgrade.sh -c fullstack -t named-release/dogwood.3
+`./upgrade.sh -c fullstack -t named-release/dogwood.3`
 
-SOBRE MAGIA CON DATA DE PRODUCCION:
+###SOBRE MAGIA CON DATA DE PRODUCCION:
 Fallo en el PAVER - error en raise OptimizationError("Error while running r.js optimizer.")
 Hice update_assets para el lms y el cms y parece que se arregló el problema
 Hubo un problema con settings "FOOTER_ORGANIZATION_IMAGE" que estaba apuntando a un folder que no existia: themes/edx.org/images/logo.png
