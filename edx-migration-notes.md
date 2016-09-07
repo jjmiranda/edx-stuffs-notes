@@ -343,7 +343,7 @@ sudo -u edxapp /edx/bin/pip.edxapp install --upgrade --no-deps edx-sga/
 
 El problema del SGA.py que no cargaba los attachs y las notas se solucionó comentando el salt con SECRET_KEY del student/models.py
 Arreglé el SGA.py por el problema que no se veia en el STUDIO (lo colgaba) descativando la carga de una libreria de IE8 de videojs, linea 286:
-# fragment.add_javascript_url("https://vjs.zencdn.net/ie8/1.1.2/videojs-ie8.min.js")
+fragment.add_javascript_url("https://vjs.zencdn.net/ie8/1.1.2/videojs-ie8.min.js")
 
 El problema del IMDPROFILE con el PROGRESS se arregló cambiando de nombre la función:
 student_view_data -> student_view_data_imdprofile
@@ -359,7 +359,8 @@ El proceso de bloqueo de los loadbalancers en producción y la segunda línea es
 ## Secuencia manual de migración:
 #################################################################################################
 #################################################################################################
-```bash script
+
+```bash
 # Tener en cuenta que el repositorio de edx-platform no puede tener ningún cambio sin commitear porque da error que se perderían cambios del repositorio.
 # Tener en cuente el chown del server-vars.yml para que esté con el usuario correcto de ese folder.
 
