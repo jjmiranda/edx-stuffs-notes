@@ -84,15 +84,21 @@ A partir de allí recién aparece la opción Enable Student Notes en el Advance 
 
 A partir de aquí ya es posible que cada alumno cree sus notas del curso de manera personal.
 
-=================================================================================
+
+## Thirty Party Auths
+##################################################################################################
+
 Instalación de Thirty Party Auths:
 Activar el Settings dentro de FEATURES:
+```json
 "ENABLE_COMBINED_LOGIN_REGISTRATION": true,
 "ENABLE_THIRD_PARTY_AUTH": true,
 "AUTH_USE_OPENID_PROVIDER": true
+```
 Después sobre el admin de django del LMS crear las entradas para cada un de los thirth party según las indicaciones sobre la tabla Third_Party_Auth › Provider Configuration (OAuth), YA NADA SE CREA EN LOS SETTINGS SALVO LOS SECRETS que se pueden crear en el lms.auth.json:
+```json
 SOCIAL_AUTH_OAUTH_SECRETS = {"(backend name)": "secret", ...} 
-
+```
 
 
 ## De Cypress a Dogwood
