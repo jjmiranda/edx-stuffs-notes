@@ -7,7 +7,7 @@ JJMiranda
 
 Otra funcionalidad que acabo de activar es la de STUDENTS NOTES/EDX_NOTES pero hay que tener lo siguiente en cuenta para que funcione bien:
 Primero seguir todas las instrucciones que están en este documento:
-https://openedx.atlassian.net/wiki/display/OpenOPS/How+to+Get+edX+Notes+Running
+https://openedx.atlassian.net/wiki/display/OpenOPS/How+to+Get+edX+Notes+running
 
 El archivo /edx/app/edx_ansible/edx_ansible/playbooks/roles/edx_notes_api/defaults.yml quedo así
 
@@ -123,6 +123,7 @@ Hice update_assets para el lms y el cms y parece que se arregló el problema
 Hubo un problema con settings "FOOTER_ORGANIZATION_IMAGE" que estaba apuntando a un folder que no existia: themes/edx.org/images/logo.png
 Se dejó en vacio el valor de este settigns. REVISARLO EN EL SERVER_VARS.
 
+
 Hubo un problema de conección con el RabbitMQ Cannot connect to amqp://celery:**@127.0.0.1:5672//: [Errno 104] Connection reset by peer.
 Revisar esta página https://groups.google.com/forum/#!topic/openedx-ops/1SsdJ39IQRc
 Y esta https://oonlab.com/edx/code/2015/10/21/solve-celery-error-saat-migrasi-open-edx/
@@ -132,6 +133,10 @@ sudo rabbitmqctl add_user celery celery
 sudo rabbitmqctl set_permissions celery ".*" ".*" ".*"
 sudo service rabbitmq-server restart
 ```
+La tabla en el ADMIN donde están los reportes es:
+Instructor tasks
+Borrar los reportes que no funcionaron para liberar la cola.
+
 
 Salio un error en el paver update_assets
 Build failed running pavelib.assets.update_assets: Subprocess return code: 127
@@ -198,10 +203,12 @@ Hacer un:
 sudo /edx/app/update configuration named-release/dogwood.rc
 ```
 
-Haciendo el update a named-release/dogwood.rc salio este error:
+Haciendo el update a named-release/dogwood.rc o instalando edx-notes salio este error:
 msg: file (/etc/update-motd.d/51-cloudguest) is absent, cannot continue
 Simplemente creamos el archivo con un touch para que exista.
-
+```
+sudo touch /etc/update-motd.d/51-cloudguest
+```
 
 Problemas con el TEMA COMPREHENSIVE para solucionar la modificación de los underscore - con el usuario edxapp:
 cp -r /edx/app/edxapp/themes/imd-compre-theme/lms/static/images/imdTheme/ /edx/var/edxapp/staticfiles/images/
@@ -356,6 +363,46 @@ El proceso de bloqueo de los loadbalancers en producción y la segunda línea es
 [29/8/16 09:49:54] Robert von Bismarck: sudo iptables -F
 
 
+## Notas acerca del Problem Builder y la exportación con el Instructor Tools en Eucalyptus.2
+#############################################################################################
+
+En Eucalyptus las variables del lms.env.json que importan para exportar los archivos al FileSystem y no al S3 son:
+"GRADES_DOWNLOAD": {
+    "STORAGE_TYPE": "localfs"
+    "BUCKET": "",
+    "ROOT_PATH": "/edx/var/edxapp/media/grades/",
+    "STORAGE_CLASS": "django.core.files.storage.FileSystemStorage",
+    "STORAGE_KWARGS": {
+        "location": "/edx/var/edxapp/media/grades/",
+        "base_url": "/media/grades/"
+    },
+},
+
+Había un problema con el "DOWNLOAD A CSV" del reporte generado porque la nueva versión de edx-platform usa Django Storage por lo que falta el 'base_url' para que jale el archivo correctamente, si no esta en '/edx/var/edxapp/media'.
+Cambie el core en:
+https://github.com/edx/edx-platform/blob/master/lms/djangoapps/instructor_task/models.py#L208
+sudo nano /edx/app/edxapp/edx-platform/lms/djangoapps/instructor_task/models.py
+En el lms.env.json:
+Para agregarle el base_url:
+storage_kwargs={
+                    'location': config['ROOT_PATH'],
+                    'base_url': '/media/grades/',
+}
+
+No olvidar reiniciar los servicios del CELERY que son los que exportan...
+sudo /edx/bin/supervisorctl restart edxapp_worker:
+
+
+## Problema con el SYSADMIN/couses:
+################################################################################################
+Se solucionó cambiando de (edx-platform)/lms/djangoapps/dashboard/sysadmin.py#348
+Esto:
+gdir = path(git_repo_dir / cdir)
+Por esto:
+gdir = path(git_repo_dir) / cdir
+
+
+
 ## Secuencia manual de migración:
 #################################################################################################
 #################################################################################################
@@ -374,7 +421,7 @@ El proceso de bloqueo de los loadbalancers en producción y la segunda línea es
 
 
 export CONFIGURATION="fullstack"
-export TARGET="open-release/eucalyptus.1"
+export TARGET="open-release/eucalyptus.2"
 # export TARGET="open-release/eucalyptus.1rc2"
 # export TARGET="named-release/dogwood.rc"
 # export TARGET="open-release/eucalyptus/latest"
@@ -392,6 +439,20 @@ if [[ -f ${OPENEDX_ROOT}/app/edx_ansible/server-vars.yml ]]; then
   SERVER_VARS="--extra-vars=\"@${OPENEDX_ROOT}/app/edx_ansible/server-vars.yml\""
 fi
 
+# check_pip succeeds if its first argument is found in the output of pip freeze.
+PIP_EDXAPP="sudo -u edxapp -H $OPENEDX_ROOT/bin/pip.edxapp --disable-pip-version-check"
+check_pip () {
+  how_many=$($PIP_EDXAPP list 2>&- | grep -c "^$1 ")
+  if (( $how_many > 0 )); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+export ANSIBLE_PLAYBOOK="sudo stdbuf -oL ansible-playbook --inventory-file=localhost, --connection=local "
+
+
 cd /tmp
 mkdir jjm_migracion_imd
 chmod 777 jjm_migracion_imd
@@ -400,8 +461,8 @@ git clone https://github.com/edx/configuration.git \
 --depth=1 --single-branch --branch=${CONFIGURATION_TARGET-$TARGET}
 
 # No es necesario el virtualenv porque el ANSIBLE corre el pip y el python con SUDO.
-sudo pip install -r configuration/pre-requirements.txt
-sudo pip install -r configuration/requirements.txt
+sudo -H pip install -r configuration/pre-requirements.txt
+sudo -H pip install -r configuration/requirements.txt
 
 cat > migrate-008-context.js <<"EOF"
     // from: https://github.com/edx/cs_comments_service/blob/master/scripts/db/migrate-008-context.js
@@ -511,5 +572,42 @@ mongo cs_comments_service migrate-008-context.js
 # FIN REBOOT a la COMPU
 ```
 
+####################################################################################################
+#
+# ECOMMERCE sobre una instalación ya nativa...
+#
+####################################################################################################
+
+Previamente export las siguientes variables que definen las versiones de los componentes a instalar:
+```
+export OPENEDX_RELEASE=open-release/eucalyptus.master
+export   EXTRA_VARS="-e edx_platform_version=$OPENEDX_RELEASE \
+    -e certs_version=$OPENEDX_RELEASE \
+    -e forum_version=$OPENEDX_RELEASE \
+    -e xqueue_version=$OPENEDX_RELEASE \
+    "
+export ECOMMERCE_VERSION=open-release/eucalyptus.master
+```
+Seguir las siguientes instrucciones de está pagina con las consideraciones indicadas debajo:
+https://openedx.atlassian.net/wiki/display/OpenOPS/How+to+Install+and+Start+the+E-Commerce+Service+in+Native+Installations
+Adicionalmente para que NO instale INSIGHTS en el mismo servidor comentar el role "-insights" del archivo edx_sandbox.yml que se ejecuta con el ansible-playbook
+agregar el comando ansible-playbook el $EXTRA_VARS definido quedando el comando a ejecutar así:
+```
+sudo ansible-playbook -c local edx_sandbox.yml -i "localhost," $EXTRA_VARS
+```
+
+El comando para crear el partner es el siguiente: (dentro del virtualenv de ecommerce)
+```
+python manage.py create_or_update_site --site-id=1 --site-domain=35.160.98.128 --partner-code=edx --partner-name='Fundacion Romero edx' --lms-url-root=http://35.160.98.128 --theme-scss-path=sass/themes/edx.scss --payment-processors=cybersource,paypal --client-id=594317129f06184694ff --client-secret=205a5ae9f353938e5555d300d581eeb039e104af --from-email=jjmiranda@magiadigital.com
+```
+Hacer lo indicado aquí respecto a los API_KEYS que no sean los por defecto:
+http://edx.readthedocs.io/projects/edx-installing-configuring-and-running/en/latest/ecommerce/create_products/create_products_overview.html
+
+Cambios post-instalación
+========================
+El ecommerce instalado corre en el 18130.
+Cambiar del archivo /edx/etc/ecommerce.yml
+ECOMMERCE_URL_ROOT: http://35.160.98.128:18130
+Cambiar también las URLs del /admin/oauth2/client/ en el LMS para que reflejen esta url.
 
 
