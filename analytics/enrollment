@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+# https://github.com/edx/edx-analytics-pipeline/wiki/Tasks-to-Run-to-Update-Insights#enrollment
+# Intended to run nightly
+# This populates most of the data needed by the "Enrollment" lens in insights, including the demographic breakdowns by age, gender, and level of education.
+# This uses more up-to-date patterns
+# Requires the following sections in config files: hive, database-export, database-import, map-reduce, event-logs, manifest, enrollments
+# It does not require the "enrollment-reports" section. That section is used to generate static CSV reports.
+# The interval here, should be the beginning of time essentially. It computes enrollment by observing state changes from the beginning of time.
+
+# Include Default Configuration (source local setup file for configuration)
+. setup
+
+# Parameter overrides in code
+# Removing this since destination information can be found at /var/lib/analytics-tasks/analyticstack/repo/override.cfg
+# Details found at https://groups.google.com/forum/#!topic/openedx-analytics/qP_2X0y2rf0
+# --override-config $OVERRIDE_CONFIG_PATH
+#
+# https://github.com/edx/edx-analytics-pipeline/blob/master/edx/analytics/tasks/enrollments.py#L545-L551
+# The following variables don't need to be specified since they are defined in the $OVERRIDE_CONFIG_PATH
+# --interval-start
+# --pattern $EVENT_LOG_PATTERN
+# --source $EVENT_LOG_SRC
+
+REMOTE_UID=ImportEnrollmentsIntoMysql
+
+# Execute Luigi task to gather Enrollment information into the Result store.
+COMMAND="remote-task $REMOTE_UID 
+  --n-reduce-tasks $NUM_REDUCE_TASKS 
+  --host $HOST 
+  --user $REMOTE_USER 
+  --remote-name $REMOTE_NAME 
+  --skip-setup 
+  --local-scheduler 
+  $VERBOSE_OUTPUT 
+  $WAIT "
+
+# Append optional parameters for the analytics command.
+if [[ -n $TRACKING_LOG_END_DATE ]]; then
+  COMMAND="$COMMAND --interval-end $TRACKING_LOG_END_DATE"
+fi
+
+if [[ -n $EVENT_LOG_PATTERN ]]; then
+  COMMAND="$COMMAND --pattern $EVENT_LOG_PATTERN"
+fi
+
+if [[ -n $EVENT_LOG_SRC ]]; then
+  COMMAND="$COMMAND --source $EVENT_LOG_SRC"
+fi
+
+# Execute the Luigi task and drop any newline characters so that command executes properly.
+if [[ ! -d $PIPELINE_TASK_LOG_PATH ]]; then
+  mkdir $PIPELINE_TASK_LOG_PATH
+  
+  if [[ ! -d "$PIPELINE_TASK_LOG_PATH/$REMOTE_UID" ]]; then
+     mkdir "$PIPELINE_TASK_LOG_PATH/$REMOTE_UID"
+  fi
+fi
+
+# Evaluate the remote-task
+if [[ -d "$PIPELINE_TASK_LOG_PATH/$REMOTE_UID" ]]; then  
+  COMMAND=$(echo $COMMAND | tr -d '\n')
+  PIPELINE_TASK_LOG="$PIPELINE_TASK_LOG_PATH/$REMOTE_UID/$(date +%Y-%m-%d\ %H:%M:%S).log"  
+  echo "===============================================================================================================" > $PIPELINE_TASK_LOG
+  echo $COMMAND >> $PIPELINE_TASK_LOG
+  echo "===============================================================================================================" >> $PIPELINE_TASK_LOG
+
+  eval $COMMAND >> $PIPELINE_TASK_LOG
+
+  # Deactivate the pipeline virtualenv (this is not necessary but is put just in case)
+  deactivate
+fi

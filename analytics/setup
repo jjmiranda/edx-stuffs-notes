@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+# Setup the pipeline virtualenv to run the 'remote-task' command properly.
+. /root/pipeline/bin/activate
+
+# This file sets up the default configuration used throughout other pipeline update scripts.
+PIPELINE_TASK_LOG_PATH="./logs"
+VERBOSE_OUTPUT="--verbose"
+WAIT="--wait"
+REMOTE_USER="root"
+HOST="localhost"
+
+# It looks like when we executed the 'remote-task' command without '--skip-setup' that the '--remote-name' was set as 'analyticstack' instead of 'pipeline'.
+# "Get some test logs into HDFS > 5C" on https://openedx.atlassian.net/wiki/display/OpenOPS/edX+Analytics+Installation
+# Details with edX developer (Gabe Mulley) here: https://groups.google.com/d/msg/openedx-analytics/qP_2X0y2rf0/jGRSv_V0CAAJ
+REMOTE_NAME="analyticstack"
+
+# Removing this since destination information can be found at /var/lib/analytics-tasks/analyticstack/repo/override.cfg
+# Details found at https://groups.google.com/forum/#!topic/openedx-analytics/qP_2X0y2rf0
+#OVERRIDE_CONFIG_PATH="$HOME/pipeline-task-scheduler/override.cfg"
+
+# https://github.com/edx/edx-analytics-pipeline/wiki/Tasks-to-Run-to-Update-Insights#general-notes
+# Tweak NUM_REDUCE_TASKS based on the size of your cluster. If the cluster is not being used for anything else 
+# a good rule of thumb is to make NUM_REDUCE_TASKS equal the number of available reduce slots on your cluster.
+# We are currently using only 1 node for hadoop cluster.
+NUM_REDUCE_TASKS=1
+
+# Parameter overrides in code
+# https://github.com/edx/edx-analytics-pipeline/blob/master/edx/analytics/tasks/enrollments.py#L545-L551
+# The following variables don't need to be specified since they are defined in the $OVERRIDE_CONFIG_PATH
+# EVENT_LOG_PATTERN=".*tracking.log-.*.gz"
+# EVENT_LOG_SRC="hdfs://localhost:9000/data/"
+#
+# Removing this since destination information can be found at /var/lib/analytics-tasks/analyticstack/repo/override.cfg
+# This is a one time ansible install with the 'remote-task' command.
+# Details found at https://groups.google.com/forum/#!topic/openedx-analytics/qP_2X0y2rf0
+# OVERRIDE_CONFIG_PATH="./override.cfg"
+
+
+#------------------------------------------------------------------------------------------
+# Setup the --interval-end date to ensure proper display of date in Insights frontend.
+# Date needs to be date after most current tracking log in /edx/var/log/tracking/ to include all data for prior date.
+# Details can be found here https://openedx.slack.com/archives/analytics/p1448464878000004
+
+TRACKING_LOG_PATTERN=".*tracking.log-[0-9]{8}.*\.gz"
+
+# Start date of tracking log files.
+TRACKING_LOG_START_DATE=$(date +%Y-%m-%d -d 2014-04-03)
+
+# Use start date as fallback plus 1 day (see details below for 1 day add due to left closed interval).
+TRACKING_LOG_END_DATE=$(date +%Y-%m-%d -d "$TRACKING_LOG_START_DATE 1 days")
+
+# Setup the files that need to be checked for --interval-end date.  Default is to look at the HDFS file system to ensure that
+# the /edx/var/log/tracking files get copied over to HDFS /data directory.
+# HDFS support: http://stackoverflow.com/questions/21569172/how-to-list-only-file-name-in-hdfs
+ENABLE_TRACKING_LOG_HDFS=true
+if [[ ENABLE_TRACKING_LOG_HDFS ]]; then
+    TRACKING_LOG_EVAL=$(eval "/edx/app/hadoop/hadoop/bin/hdfs dfs -ls /data" | sed '1d;s/  */ /g' | cut -d\  -f8 | xargs -n 1 basename)
+else
+    TRACKING_LOG_EVAL=$(find "/edx/var/log/tracking" -maxdepth 1 -type f)
+fi
+
+# Loop through all tracking logs and find log with max date in name.
+# Use redirection instead of piping the find files to avoid local variable 
+# TRACKING_LOG_END_DATE to be lost after exiting the loop.
+# Todo: Need to find a better alternative to comparing dates found since it takes a little while to traverse through all files.
+IFS=
+while read file; 
+do
+    # Does this file name match the tracking logs *.gz pattern.
+    if [[ "$(basename "$file")" =~ $TRACKING_LOG_PATTERN ]]
+    then
+        # Using the fount *.gz file find the date in the filename.
+        match=${BASH_REMATCH[0]}
+        date_match=$(echo "$match" | grep -oE '\-[0-9]{8}\-')
+        date_file=$(date -d "${date_match//-}" +"%Y%m%d")         
+        
+        # Update the tracking log end date to more current date from filename date.
+        [[ $date_file -ge $TRACKING_LOG_END_DATE ]] && {      
+            TRACKING_LOG_END_DATE=$date_file
+        }
+    fi
+done <<<$TRACKING_LOG_EVAL
+
+# Format this date with YYYY-MM-DD to match remote-task option.
+# Need to add one day to since --interval-end is a left closed interval meaning that
+# all data up to that date will be used by not any data from that date
+# (e.g. if --interval-end=2015-11-13 then it will include date up to 2015-11-12 23:59:59.999)
+# Details about setting can be found here https://openedx.slack.com/archives/analytics/p1448470668000018
+TRACKING_LOG_END_DATE=$(date +%Y-%m-%d -d "$TRACKING_LOG_END_DATE 1 days")
+#------------------------------------------------------------------------------------------
