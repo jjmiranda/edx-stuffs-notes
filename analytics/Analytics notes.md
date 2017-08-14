@@ -140,7 +140,7 @@ sudo nano /edx/app/hadoop/hadoop-2.3.0/etc/hadoop/mapred-site.xml
  <value>-Xmx3072M</value>
 </property>
 
-Usae el usario hadoop para todo lo que tiene que ver con Hadoop
+Usar el usario hadoop para todo lo que tiene que ver con Hadoop
 sudo su - hadoop
 
 Para parar y volver a arrancar los servicios:
@@ -150,20 +150,26 @@ cd /edx/app/hadoop/hadoop-2.3.0/sbin/
 Para copiar los archivos del log de LMS
 =======================================
 Copiar del LMS al folder en el Insights
+```
 rsync -a -v -e ssh certeducax.magia.digital:/edx/var/log/tracking /edx/var/log/
+```
 Hacer un chown de todos los archivos a hadoop dentro del folder tracking
+```
 sudo chown -R hadoop ./*
-
+```
 
 Modifique el crontab -e para que el cron copie todos los archivos tracking.log*.gz al folder /data de hadoop y no otros (_COPING_)
+```
 #Ansible: Sync tracking log to HDFS
 * * * * * /edx/app/hadoop/hadoop/bin/hdfs dfs -put -f /edx/var/log/tracking/tracking.log*.gz hdfs://localhost:9000/data/
+```
 
-ACTIVAT un TMUX y allí ACTIVAR EL VIRTUALENV DE DONDE SE CORREN LAS TAREAS y correr LUIGID como central scheduler:
+ACTIVAR un TMUX y allí ACTIVAR EL VIRTUALENV DE DONDE SE CORREN LAS TAREAS y correr LUIGID como central scheduler:
+```
 source /var/lib/analytics-tasks/analyticstack/venv/bin/activate
 luigid
 # Con esto ya no se usa --local-scheduler en las tareas. Agregar --local-scheduler si no se está corriendo luigid
-
+```
 
 
 COURSE ENROLLMENT...
